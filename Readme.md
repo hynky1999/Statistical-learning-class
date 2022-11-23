@@ -30,6 +30,6 @@ Solution to assigments of the course "I don't remeber the name something with st
   - [x] 5.2
 
 - Task 6:
-  - [ ] 6.1
-  - [ ] 6.2
-  - [ ] 6.3
+  - [x] 6.1
+  - [x] 6.2
+  - [x] 6.3 Need quesitons
