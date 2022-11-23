@@ -26,8 +26,8 @@ Solution to assigments of the course "I don't remeber the name something with st
   - [x] 4.3
 
 - Task 5:
-  - [ ] 5.1
-  - [ ] 5.2
+  - [x] 5.1
+  - [x] 5.2
 
 - Task 6:
   - [ ] 6.1

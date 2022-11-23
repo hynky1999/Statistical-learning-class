@@ -6,19 +6,20 @@ load("Assigments/1/ridge-regression/HWD.RData")
 train_ind <- sample(1:nrow(data), 0.8 * nrow(data))
 
 get_acc <- function(pre_res, Y_test) {
-    acc <- sum(predicted_test == Y_test) / length(Y_test)
+    acc <- sum(pre_res == Y_test) / length(Y_test)
+    acc
 }
-
+data[, 1] <- as.factor(data[, 1])
 # training set
 X_train <- data[train_ind, -1]
-Y_train <- data[train_ind, 1]
+Y_train <- as.factor(data[train_ind, 1])
 
 X_test <- data[-train_ind, -1]
-Y_test <- data[-train_ind, 1]
+Y_test <- as.factor(data[-train_ind, 1])
 
 
 train_svm <- function(X_train, Y_train, C, kernel = "vanilladot") {
-    model <- ksvm(X_train, Y_train, kernel = kernel, C = C, cross = 10)
+    model <- ksvm(X_train, Y_train, kernel = kernel, C = C, cross = 10, type = "C-svc")
     model
 }
 
@@ -55,13 +56,16 @@ best_rbdot_param <- train_svm_with_cross(X_train, Y_train, possible_vals, kernel
 
 
 
-vanilla_dot_model <- train_svm(X_train, Y_train, best_vanilla_dot_param[["C"]], kernel = "vanilladot")
+vanilla_dot_model <- train_svm(X_train, Y_train, best_vanilla_dot_param, kernel = "vanilladot")
 
-rbfdot_model <- train_svm(X_train, Y_train, best_rbdot_param[["C"]], kernel = "rbfdot")
+rbfdot_model <- train_svm(X_train, Y_train, best_rbdot_param, kernel = "rbfdot")
 
 
 predicted_vanilla_test <- predict(vanilla_dot_model, X_test)
 predicted_rbf_test <- predict(rbfdot_model, X_test)
 
-get_acc(predicted_vanilla_test, Y_test)
-get_acc(predicted_rbf_test, Y_test)
+print(get_acc(predicted_vanilla_test, Y_test))
+print(get_acc(predicted_rbf_test, Y_test))
+
+
+predict(vanilla_dot_model, X_test, type = "response")
