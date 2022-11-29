@@ -29,9 +29,11 @@ library(kernlab)
 
 train_svm_with_cross <- function(X_train, Y_train, Cs_vals, kernel = "vanilladot") {
     # Generate lambdas and sigmas
+    # No cross validation here as it is done in train_svm
     Cs <- expand.grid(C = Cs_vals)
     best_model <- NULL
     best_error <- Inf
+    kpars <- list()
     for (i in 1:nrow(Cs)) {
         print(i)
         C <- Cs[i, 1]
@@ -41,10 +43,11 @@ train_svm_with_cross <- function(X_train, Y_train, Cs_vals, kernel = "vanilladot
 
         if (total_error < best_error) {
             best_error <- total_error
+            kpars <- kpar(kernelf(model))
             best_model <- Cs[i, ]
         }
     }
-    best_model
+    list(C = best_model, kpars = kpars)
 }
 
 
@@ -56,10 +59,10 @@ best_rbdot_param <- train_svm_with_cross(X_train, Y_train, possible_vals, kernel
 
 
 
-vanilla_dot_model <- train_svm(X_train, Y_train, best_vanilla_dot_param, kernel = "vanilladot")
+vanilla_dot_model <- ksvm(X_train, Y_train, C = best_vanilla_dot_param$C, kernel = "vanilladot", type = "C-svc")
 
-rbfdot_model <- train_svm(X_train, Y_train, best_rbdot_param, kernel = "rbfdot")
 
+rbfdot_model <- ksvm(X_train, Y_train, kernel = kernel, C = C, type = "C-svc", kpar = best_rbdot_param$kpars)
 
 predicted_vanilla_test <- predict(vanilla_dot_model, X_test)
 predicted_rbf_test <- predict(rbfdot_model, X_test)
@@ -67,5 +70,11 @@ predicted_rbf_test <- predict(rbfdot_model, X_test)
 print(get_acc(predicted_vanilla_test, Y_test))
 print(get_acc(predicted_rbf_test, Y_test))
 
+predicted_vanilla_test <- predict(vanilla_dot_model, X_train)
+predicted_rbf_test <- predict(rbfdot_model, X_train)
 
-predict(vanilla_dot_model, X_test, type = "response")
+print(get_acc(predicted_vanilla_test, Y_train))
+print(get_acc(predicted_rbf_test, Y_train))
+
+print(best_vanilla_dot_param)
+print(best_rbdot_param)

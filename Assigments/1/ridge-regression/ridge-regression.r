@@ -2,7 +2,7 @@ set.seed(8312)
 
 
 get_acc <- function(pre_res, Y_test) {
-    acc <- sum(predicted_test == Y_test) / length(Y_test)
+    acc <- sum(pre_res == Y_test) / length(Y_test)
 }
 
 # kappa

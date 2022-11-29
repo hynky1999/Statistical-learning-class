@@ -8,6 +8,7 @@ data <- Boston
 normalize_data <- function(data, mean, sd) {
     centralized <- data - t(replicate(nrow(data), mean))
     stand <- centralized / t(replicate(nrow(data), sd))
+    centralized
     stand
 }
 
@@ -63,8 +64,13 @@ Y_test <- data[-train_ind, 14]
 model <- lm(Y_train ~ ., data = X_train)
 summary(model)
 
-predicted <- predict(model, X_test)
-baseline_mse <- mse(predicted, Y_test)
+predicted_test <- predict(model, X_test)
+
+baseline_mse <- mse(predicted_test, Y_test)
+
+predicted_train <- predict(model, X_train)
+
+baseline_mse <- mse(predicted_train, Y_train)
 
 # 4.3
 log_seq <- function(start, end, step) {
@@ -111,6 +117,10 @@ for (i in 1:nrow(lambda_sigmas)) {
 
 
 
-y <- predict_ridge(X_train, X_test, Y_train, best_model[["lambda"]], best_model[["sigma"]])
+y_test <- predict_ridge(X_train, X_test, Y_train, best_model[["lambda"]], best_model[["sigma"]])
 
-mse(y, Y_test)
+y_train <- predict_ridge(X_train, X_train, Y_train, best_model[["lambda"]], best_model[["sigma"]])
+
+
+print(mse(y_train, Y_train))
+print(mse(y_test, Y_test))

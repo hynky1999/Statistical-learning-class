@@ -6,6 +6,12 @@ library("dplyr") # data manipulation
 library("mice") # imputation
 library("randomForest") # classification algorithm
 
+
+
+get_acc <- function(pre_res, Y_test) {
+    acc <- sum(pre_res == Y_test) / length(Y_test)
+}
+
 # Load data
 train <- read.csv("titan_train.csv", stringsAsFactors = F)
 test <- read.csv("titan_test.csv", stringsAsFactors = F)
@@ -173,31 +179,28 @@ test <- full[(train_n_rows + 1):nrow(full), ]
 # Should we split to test and train ?
 # Train a random forest
 rf_mod <- randomForest(
-    Survived ~ Pclass + Sex + Age + Fare + Embarked + Fsize + Mother,
+    Survived ~ Pclass + Sex + SibSp + Age + Fare + Embarked + Title + FsizeD + Mother + Child,
     data = train,
     importance = TRUE,
-    ntree = 1000,
-    ntry = 5,
-    keep.forest = TRUE
 )
 
-
-err_rates <- c()
-for (tree in rf_mod$forest) {
-    print(tree)
-
-    err_rates <- c(err_rates, tree$err.rate)
-}
+predictions <- predict(rf_mod, train, predict.all = T)
+acc_predictions <- as.integer(as.vector(predictions$aggregate))
+ind_predictions <- matrix(as.integer(predictions$individual), ncol = ncol(predictions$individual))
 
 
+# Err.rate of whole model
+print(1-get_acc(acc_predictions, train$Survived))
+# avg Err.rate of individual trees
+print(mean(apply(ind_predictions, 2, function(x) 1-get_acc(x, train$Survived))))
 
-rf_mod$forest
-
-plot(rf_mod, ylim = c(0, 0.36))
-legend("topright", colnames(rf_mod$err.rate), col = 1:3, fill = 1:3)
 
 
-# Plot variable importance
+dev.off()
+plot(rf_mod)
+legend("topleft", colnames(rf_mod$err.rate), col = 1:3, fill = 1:3)
+
+
 importance <- importance(rf_mod)
 
 varImportance <- data.frame(
@@ -206,18 +209,15 @@ varImportance <- data.frame(
 )
 
 # Create a rank variable based on importance
+# Add rank based on orderd
 rankImportance <- varImportance %>%
     mutate(Rank = paste0("#", dense_rank(desc(Importance))))
 
-# Use ggplot2 to visualize the relative importance of variables
-ggplot(rankImportance, aes(
-    x = reorder(Variables, Importance),
-    y = Importance, fill = Importance
-)) +
-    geom_bar(stat = "identity") +
-    geom_text(aes(x = Variables, y = 0.5, label = Rank),
-        hjust = 0, vjust = 0.55, size = 4, colour = "red"
-    ) +
-    labs(x = "Variables") +
+
+
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), y = Importance)) +
+    geom_bar(stat = "identity", fill = "#99d6ff") +
+    geom_text(aes(label = Rank), vjust = -0.25, size = 3) +
     coord_flip() +
+    labs(x = "Variable", y = "Importance") +
     theme_few()
