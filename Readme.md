@@ -14,8 +14,8 @@ Solution to assigments of the course "I don't remeber the name something with st
   - [x] 2.2 Code ready
 
 - Task 3:
-    - [ ] 3.1
-        Should be easy. Just need to write it.
+    - [x] 3.1
+        Done
 
     - [x] 3.2 Code ready
 
@@ -32,4 +32,4 @@ Solution to assigments of the course "I don't remeber the name something with st
 - Task 6:
   - [x] 6.1
   - [x] 6.2
-  - [x] 6.3 Need quesitons
+  - [x] 6.3
