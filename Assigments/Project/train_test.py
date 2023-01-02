@@ -1,48 +1,12 @@
-# [num_batched,n, 4], [num_batch ,n, 4]
-
-
-import time
-from torch.utils.tensorboard import SummaryWriter
-from torchmetrics import Accuracy, Precision, Recall, F1Score
 from torch.utils.data import DataLoader
-import torch.nn as nn
+from torchtext.data.metrics import bleu_score
+from torchmetrics import BLEUScore
+from torch.utils.tensorboard import SummaryWriter
+from tokenizers import Tokenizer
 import torch
-
-
-def train(
-    model: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    criterion: nn.Module,
-    train_data: DataLoader,
-    writer: SummaryWriter,
-    epoch: int,
-    minibatch=False,
-):
-    model.train()
-    total_loss = 0
-    start_time = time.time()
-    interval = 100
-    if minibatch:
-        train_data = [next(iter(train_data))]
-
-    total_batches = len(train_data) - 1
-    for batch_i, batch in enumerate(train_data):
-        output = model(
-            batch["en_ids"], batch["de_ids"], batch["en_att"], batch["de_att"]
-        )
-        loss = criterion(output, batch[)
-        # backward
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-        if batch_i % interval == 0 and batch_i > 0:
-            create_report(
-                writer, total_loss / interval, batch_i, total_batches, start_time, epoch
-            )
-            total_loss = 0
-            start_time = time.time()
+import torch.nn as nn
+import time
+from transfomer import Transformer
 
 
 def create_report(
@@ -62,50 +26,95 @@ def create_report(
     )
 
 
-def evaluate(
+def train(
     model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: object,
     criterion: nn.Module,
-    test_data: DataLoader,
+    train_data: DataLoader,
     writer: SummaryWriter,
     epoch: int,
-    n_labels: int,
     minibatch=False,
 ):
-    # If minibatch is True test_data must not be shuffle in order for this to work
-    model.eval()
+    model.train()
     total_loss = 0
-    predictions = []
-    correct_labels = []
+    start_time = time.time()
+    interval = 100
     if minibatch:
-        test_data = [next(iter(test_data))]
+        train_data = [next(iter(train_data))]
+
+    total_batches = len(train_data) - 1
+    for batch_i, batch in enumerate(train_data):
+        # Remove last token from target as it is not required
+        target_ids = batch["de_ids"][:, :-1]
+        target_att = batch["de_att"][:, :, :, :-1]
+        source_ids = batch["en_ids"]
+        source_mask = batch["en_att"] == 1
+
+        target_mask = Transformer.make_trg_mask(target_att == 1)
+        output = model(source_ids, target_ids, source_mask, target_mask)
+
+        target_correct = batch["de_ids"][:, 1:]
+        loss = criterion(output.transpose(1, 2), target_correct)
+        # backward
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+        total_loss += loss.item()
+        if batch_i % interval == 0 and batch_i > 0 or minibatch:
+            create_report(
+                writer, total_loss / interval, batch_i, total_batches, start_time, epoch
+            )
+            total_loss = 0
+            start_time = time.time()
+
+
+def strip_start_end(tokens, end_token):
+    tokens = tokens[1:]
+    try:
+        end = tokens.index(end_token)
+        return tokens[:end]
+    except ValueError:
+        pass
+
+    return tokens
+
+
+def evaluate(
+    model: nn.Module,
+    test_data: DataLoader,
+    writer: SummaryWriter,
+    de_tokenizer: Tokenizer,
+):
+    start_token, end_token = de_tokenizer.token_to_id(
+        "[START]"
+    ), de_tokenizer.token_to_id("[END]")
+    model.eval()
+    total_bleu = 0
+    bleu_score = BLEUScore()
+    total_samples = 0
 
     with torch.no_grad():
-        for sentences, label in test_data:
+        for _, batch in enumerate(test_data):
+            total_samples += len(batch["de_sent"])
+            # Remove last token from target as it is not required
+            source_ids = batch["en_ids"]
+            source_mask = batch["en_att"] == 1
 
-            output = model(*sentences)
-            predictions.append(output.argmax(dim=1))
-            correct_labels.append(label)
-            total_loss += criterion(output, label).item()
+            target_sent = batch["de_sent"]
+            predicted = model.predict(source_ids, source_mask, start_token, end_token)
+            # Convertes predicted to list of sentences and then strips the start and end tokens
+            without_start_end = [
+                strip_start_end(p, end_token=end_token) for p in predicted.tolist()
+            ]
+            truth = [[str(x)] for x in target_sent]
+            decoded_predictions = de_tokenizer.decode_batch(without_start_end)
+            bleu = bleu_score(decoded_predictions, truth)
 
-    predictions = torch.cat(predictions, dim=0)
-    correct_labels = torch.cat(correct_labels, dim=0)
-    acc = Accuracy(num_classes=n_labels, average="macro").to(device)(
-        predictions, correct_labels
-    )
-    prec = Precision(num_classes=n_labels, average="macro").to(device)(
-        predictions, correct_labels
-    )
-    recall = Recall(num_classes=n_labels, average="macro").to(device)(
-        predictions, correct_labels
-    )
-    f1 = F1Score(num_classes=n_labels, average="macro").to(device)(
-        predictions, correct_labels
-    )
-    loss_avg = total_loss / len(test_data)
-    print(f"{epoch} Acc: {acc} Loss: {loss_avg}")
-    writer.add_scalar("Loss/dev", loss_avg, epoch)
-    writer.add_scalar("Acc/dev", acc, epoch)
-    writer.add_scalar("Prec/dev", prec, epoch)
-    writer.add_scalar("Recall/dev", recall, epoch)
-    writer.add_scalar("F1/dev", f1, epoch)
-    return total_loss / len(test_data)
+            total_bleu += bleu
+
+    result = total_bleu / total_samples
+    writer.add_scalar("BLEU", result)
+    return result
