@@ -35,6 +35,7 @@ def train(
     writer: SummaryWriter,
     epoch: int,
     minibatch=False,
+    device=torch.device("cpu"),
 ):
     model.train()
     total_loss = 0
@@ -54,7 +55,7 @@ def train(
         target_mask = Transformer.make_trg_mask(target_att == 1)
         output = model(source_ids, target_ids, source_mask, target_mask)
 
-        target_correct = batch["de_ids"][:, 1:]
+        target_correct = batch["de_ids"][:, 1:].to(device)
         loss = criterion(output.transpose(1, 2), target_correct)
         # backward
         optimizer.zero_grad()

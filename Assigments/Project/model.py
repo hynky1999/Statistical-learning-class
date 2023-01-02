@@ -51,16 +51,18 @@ class WMTModel(nn.Module):
 
     def predict(self, src, src_mask, start_token, end_token, max_len=100):
         src = src.to(self.device)
+        src_mask = src_mask.to(self.device)
+
         src = self.pos_encoding(self.EN_embedding(src))
         enc_output = self.transformer.encode(src, src_mask)
         trg = torch.zeros((src.shape[0], 1)).long().to(self.device)
         trg[:, 0] = start_token
-        trg_embedding = self.pos_encoding(self.DE_embedding(trg))
+        trg_embedding = self.pos_encoding(self.DE_embedding(trg)).to(self.device)
         ended_idx = set()
         for i in range(max_len):
             trg_mask = Transformer.make_trg_mask(
                 torch.ones([trg.shape[0], 1, 1, trg.shape[1]]) == 1
-            )
+            ).to(self.device)
             out = self.transformer.decode(trg_embedding, enc_output, trg_mask, src_mask)
             pred = out[:, -1].argmax(1).unsqueeze(1)
             pred_embedding = self.pos_encoding(self.DE_embedding(pred))
