@@ -17,7 +17,7 @@ class MultiHeadAttention(nn.Module):
         self.keys = nn.Linear(embed_size, self.attention_dim)
         self.queries = nn.Linear(embed_size, self.attention_dim)
         self.values = nn.Linear(embed_size, self.attention_dim)
-        self.head_projecion = nn.Linear(self.attention_dim, embed_size)
+        self.head_projection = nn.Linear(self.attention_dim, embed_size)
 
     def forward(self, Q, K, V, mask):
         # 1) Get Queries/Keys/Values
@@ -37,9 +37,9 @@ class MultiHeadAttention(nn.Module):
         # attention = (N, heads, q_len, k_len)
 
         if mask is not None:
-            attention = attention.masked_fill(mask == 0, float("-inf"))
+            attention = attention.masked_fill(torch.logical_not(mask), float("-inf"))
 
-        attention = self.sofmax(attention / self.embed_size**(1 / 2))
+        attention = self.sofmax(attention / self.embed_size ** (1 / 2))
         # V = (N, k_len, heads, heads_dim)
 
         attention = torch.einsum("nhqk, nkhd->nqhd", [attention, V])
@@ -147,7 +147,11 @@ class TransfomerEncoder(nn.Module):
         self.layers = nn.ModuleList(
             [
                 EncoderBlock(
-                    embed_size=self.embed_size, expand_linear_dim=expand_linear_dim, heads=heads, heads_dim=heads_dim, dropout=dropout
+                    embed_size=self.embed_size,
+                    expand_linear_dim=expand_linear_dim,
+                    heads=heads,
+                    heads_dim=heads_dim,
+                    dropout=dropout,
                 )
                 for _ in range(num_layers)
             ]
@@ -174,7 +178,11 @@ class TransfomerDecoder(nn.Module):
         self.layers = nn.ModuleList(
             [
                 DecoderBlock(
-                    embed_size=self.embed_size, expand_linear_dim= expand_linear_dim, heads=heads, heads_dim=heads_dim, dropout=dropout
+                    embed_size=self.embed_size,
+                    expand_linear_dim=expand_linear_dim,
+                    heads=heads,
+                    heads_dim=heads_dim,
+                    dropout=dropout,
                 )
                 for _ in range(num_layers)
             ]
@@ -188,13 +196,21 @@ class TransfomerDecoder(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1, device=torch.device("cpu")):
+    def __init__(
+        self,
+        d_model: int,
+        max_len: int = 5000,
+        dropout: float = 0.1,
+        device=torch.device("cpu"),
+    ):
         super().__init__()
         self.d_model = d_model
         self.max_len = max_len
         self.dropout = nn.Dropout(dropout)
         self.device = device
-        self.register_buffer("pe", self.calculate(self.d_model, self.max_len).to(self.device))
+        self.register_buffer(
+            "pe", self.calculate(self.d_model, self.max_len).to(self.device)
+        )
 
     def calculate(self, d_model: int, max_len: int = 5000):
         position = torch.arange(max_len).unsqueeze(1)
@@ -212,13 +228,15 @@ class PositionalEncoding(nn.Module):
         s_len = x.shape[1]
         if s_len > self.max_len:
             self.max_len = s_len
-            self.register_buffer("pe", self.calculate(self.d_model, self.max_len).to(self.device))
+            self.register_buffer(
+                "pe", self.calculate(self.d_model, self.max_len).to(self.device)
+            )
 
         x = x + self.pe[:, :s_len, :]
         return self.dropout(x)
 
 
-class Transfomer(nn.Module):
+class Transformer(nn.Module):
     def __init__(
         self,
         enc: TransfomerEncoder,
@@ -232,8 +250,16 @@ class Transfomer(nn.Module):
         self.trg_linear = nn.Linear(dec.embed_size, trg_size)
 
     def forward(self, enc_input, dec_input, src_mask, trg_mask):
+        encoded = self.encode(enc_input, src_mask)
+        decoded = self.decode(dec_input, encoded, trg_mask, src_mask)
+        return decoded
+
+    def encode(self, enc_input, src_mask):
         enc_out = self.enc(enc_input, src_mask)
-        dec_out = self.dec(dec_input, enc_out, src_mask, trg_mask)
+        return enc_out
+
+    def decode(self, dec_input, enc_input, trg_mask, enc_mask):
+        dec_out = self.dec(dec_input, enc_input, trg_mask, enc_mask)
         dec_out = self.trg_linear(dec_out)
         return dec_out
 
@@ -243,13 +269,15 @@ class Transfomer(nn.Module):
         return src_mask
 
     @staticmethod
-    def make_trg_mask(trg):
-        N, trg_len = trg.shape
-        trg_mask = torch.tril(torch.ones((trg_len, trg_len))).expand(
-            N, 1, trg_len, trg_len
+    def make_trg_mask(trg_mask):
+        N, _, _, trg_len = trg_mask.shape
+        sent_mask = (
+            torch.tril(torch.ones((trg_len, trg_len))).expand(N, 1, trg_len, trg_len)
+            == 1
         )
 
-        return trg_mask
+        sent_mask = sent_mask & trg_mask.repeat(1, 1, trg_len, 1)
+        return sent_mask
 
 
 # Tests
@@ -282,14 +310,28 @@ def testTransfomer():
     y = torch.rand(4, 10, 4)
     encoder = TransfomerEncoder(1, 4, 10, 4, 4, 0.1)
     decoder = TransfomerDecoder(1, 4, 10, 8, 4, 0.1)
-    trans = Transfomer(encoder, decoder, 10)
+    trans = Transformer(encoder, decoder, 10)
     src = torch.randint(0, 2, [4, 5])
     trg = torch.randint(0, 2, [4, 10])
 
-    trans(x, y, Transfomer.make_src_mask(src, 0), Transfomer.make_trg_mask(trg))
+    src_mask = Transformer.make_src_mask(src, 0)
+    trg_mask = Transformer.make_trg_mask(Transformer.make_src_mask(trg, 0))
+
+    trans(x, y, src_mask, trg_mask)
+
+
+def testTrgMask():
+    mask = torch.ones(1, 1, 1, 3)
+    mask[0, 0, 0, 2] = 0
+    my_mask = Transformer.make_trg_mask(mask == 1)
+    expected_mask = (
+        torch.tensor([[1, 0, 0], [1, 1, 0], [1, 1, 0]]).unsqueeze(0).unsqueeze(0) == 1
+    )
+    assert torch.all(my_mask == expected_mask)
 
 
 if __name__ == "__main__":
     testMultiHeadSelfAttention()
     testPosEncoding()
     testTransfomer()
+    testTrgMask()
