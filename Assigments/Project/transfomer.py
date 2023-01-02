@@ -17,7 +17,7 @@ class MultiHeadAttention(nn.Module):
         self.keys = nn.Linear(embed_size, self.attention_dim)
         self.queries = nn.Linear(embed_size, self.attention_dim)
         self.values = nn.Linear(embed_size, self.attention_dim)
-        self.head_projection = nn.Linear(self.attention_dim, embed_size)
+        self.head_projecion = nn.Linear(self.attention_dim, embed_size)
 
     def forward(self, Q, K, V, mask):
         # 1) Get Queries/Keys/Values
@@ -39,7 +39,7 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             attention = attention.masked_fill(mask == 0, float("-inf"))
 
-        attention = self.sofmax(attention / self.embed_size**1 / 2)
+        attention = self.sofmax(attention / self.embed_size**(1 / 2))
         # V = (N, k_len, heads, heads_dim)
 
         attention = torch.einsum("nhqk, nkhd->nqhd", [attention, V])
@@ -147,7 +147,7 @@ class TransfomerEncoder(nn.Module):
         self.layers = nn.ModuleList(
             [
                 EncoderBlock(
-                    self.embed_size, expand_linear_dim, heads, heads_dim, dropout
+                    embed_size=self.embed_size, expand_linear_dim=expand_linear_dim, heads=heads, heads_dim=heads_dim, dropout=dropout
                 )
                 for _ in range(num_layers)
             ]
@@ -174,26 +174,27 @@ class TransfomerDecoder(nn.Module):
         self.layers = nn.ModuleList(
             [
                 DecoderBlock(
-                    self.embed_size, expand_linear_dim, heads, heads_dim, dropout
+                    embed_size=self.embed_size, expand_linear_dim= expand_linear_dim, heads=heads, heads_dim=heads_dim, dropout=dropout
                 )
                 for _ in range(num_layers)
             ]
         )
 
-    def forward(self, x, enc_out, self_mask, target_mask):
+    def forward(self, x, enc_out, self_mask, enc_mask):
         for layer in self.layers:
             # Changed order
-            x = layer(x, enc_out, enc_out, target_mask, self_mask)
+            x = layer(x, enc_out, enc_out, self_mask=self_mask, enc_mask=enc_mask)
         return x
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1, device=torch.device("cpu")):
         super().__init__()
         self.d_model = d_model
         self.max_len = max_len
         self.dropout = nn.Dropout(dropout)
-        self.register_buffer("pe", self.calculate(self.d_model, self.max_len))
+        self.device = device
+        self.register_buffer("pe", self.calculate(self.d_model, self.max_len).to(self.device))
 
     def calculate(self, d_model: int, max_len: int = 5000):
         position = torch.arange(max_len).unsqueeze(1)
@@ -211,7 +212,7 @@ class PositionalEncoding(nn.Module):
         s_len = x.shape[1]
         if s_len > self.max_len:
             self.max_len = s_len
-            self.register_buffer("pe", self.calculate(self.d_model, self.max_len))
+            self.register_buffer("pe", self.calculate(self.d_model, self.max_len).to(self.device))
 
         x = x + self.pe[:, :s_len, :]
         return self.dropout(x)
@@ -222,7 +223,7 @@ class Transfomer(nn.Module):
         self,
         enc: TransfomerEncoder,
         dec: TransfomerDecoder,
-        trg_size,
+        trg_size: int,
     ):
         super().__init__()
         self.enc = enc
