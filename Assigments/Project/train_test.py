@@ -40,9 +40,9 @@ def train(
     model.train()
     total_loss = 0
     start_time = time.time()
-    interval = 100
     if minibatch:
         train_data = [next(iter(train_data))]
+    interval = len(train_data) // 15
 
     total_batches = len(train_data) - 1
     for batch_i, batch in enumerate(train_data):
