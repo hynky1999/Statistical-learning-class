@@ -36,23 +36,25 @@ def train(
     epoch: int,
     minibatch=False,
     device=torch.device("cpu"),
+    pad_token=0,
 ):
     model.train()
     total_loss = 0
     start_time = time.time()
     if minibatch:
         train_data = [next(iter(train_data))]
-    interval = len(train_data) // 15
+    interval = len(train_data) // 15 if not minibatch else 1
 
     total_batches = len(train_data) - 1
     for batch_i, batch in enumerate(train_data):
         # Remove last token from target as it is not required
         target_ids = batch["de_ids"][:, :-1]
-        target_att = batch["de_att"][:, :, :, :-1]
         source_ids = batch["en_ids"]
-        source_mask = batch["en_att"] == 1
+        source_mask = Transformer.make_src_mask(source_ids, pad_token)
 
-        target_mask = Transformer.make_trg_mask(target_att == 1)
+        target_mask = Transformer.make_trg_mask(
+            Transformer.make_src_mask(target_ids, pad_token) == 1
+        )
         output = model(source_ids, target_ids, source_mask, target_mask)
 
         target_correct = batch["de_ids"][:, 1:].to(device)
@@ -96,13 +98,14 @@ def evaluate(
     total_bleu = 0
     bleu_score = BLEUScore()
     total_samples = 0
+    pad_token = 0
 
     with torch.no_grad():
         for _, batch in enumerate(test_data):
             total_samples += len(batch["de_sent"])
             # Remove last token from target as it is not required
             source_ids = batch["en_ids"]
-            source_mask = batch["en_att"] == 1
+            source_mask = Transformer.make_src_mask(source_ids, pad_token)
 
             target_sent = batch["de_sent"]
             predicted = model.predict(source_ids, source_mask, start_token, end_token)
