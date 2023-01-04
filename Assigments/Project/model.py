@@ -36,7 +36,7 @@ class WMTModel(nn.Module):
             dropout=dropout,
         )
         self.transformer = Transformer(encoder, decoder, DE_size)
-        self.pos_encoding = PositionalEncoding(d_model, 100, dropout)
+        self.pos_encoding = PositionalEncoding(d_model, 100, dropout, device=device)
         self.device = device
 
     def forward(self, src, trg, src_mask, trg_mask):
