@@ -9,16 +9,26 @@ from transfomer import (
 
 
 class WMTModel(nn.Module):
-    def __init__(self, EN_size, DE_size, d_model, device=torch.device("cpu")):
+    def __init__(
+        self,
+        EN_size,
+        DE_size,
+        d_model,
+        device=torch.device("cpu"),
+        num_layers=6,
+        heads=8,
+        expand=4,
+        dropout=0.1,
+    ):
         super().__init__()
         self.DE_embedding = nn.Embedding(DE_size, d_model)
         self.EN_embedding = nn.Embedding(EN_size, d_model)
         # 6 layers, 512 embedding size, 2048 expand linear dim, 8 heads, 64 heads dim, 0.1 dropout
-        num_layers = 6
-        heads = 8
+        num_layers = num_layers
+        heads = heads
         heads_dim = d_model // heads
-        expand_dim = 4 * d_model
-        dropout = 0.1
+        expand_dim = expand * d_model
+        dropout = dropout
         encoder = TransfomerEncoder(
             num_layers=num_layers,
             embed_size=d_model,
