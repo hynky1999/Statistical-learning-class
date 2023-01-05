@@ -19,10 +19,7 @@ class WMTModel(nn.Module):
         heads=8,
         expand=4,
         dropout=0.1,
-<<<<<<< HEAD
-=======
         max_len=100,
->>>>>>> 87944a0 (Done)
     ):
         super().__init__()
         self.DE_embedding = nn.Embedding(DE_size, d_model)
@@ -50,11 +47,7 @@ class WMTModel(nn.Module):
             dropout=dropout,
         )
         self.transformer = Transformer(encoder, decoder, DE_size)
-<<<<<<< HEAD
-        self.pos_encoding = PositionalEncoding(d_model, 100, dropout, device=device)
-=======
         self.pos_encoding = PositionalEncoding(d_model, max_len, dropout, device=device)
->>>>>>> 87944a0 (Done)
         self.device = device
 
     def forward(self, src, trg, src_mask, trg_mask):
